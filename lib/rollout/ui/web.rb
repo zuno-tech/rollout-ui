@@ -1,6 +1,6 @@
+require "erb"
 require "json"
 require "rack"
-require "slim"
 require "rollout"
 
 require "rollout/ui/version"
@@ -124,8 +124,8 @@ module Rollout::UI
             if params[:users]
               feature.users = params[:users].split(',').map(&:strip).uniq.sort
             end
-            feature.data.update(description: params[:description])
-            feature.data.update(updated_at: Time.now.to_i)
+            feature.data["description"] = params[:description]
+            feature.data["updated_at"] = Time.now.to_i
           end
         end
 
@@ -139,7 +139,7 @@ module Rollout::UI
         with_rollout_context(rollout, actor: actor) do
           rollout.with_feature(params[:feature_name]) do |feature|
             feature.percentage = params[:percentage].to_f.clamp(0.0, 100.0)
-            feature.data.update(updated_at: Time.now.to_i)
+            feature.data["updated_at"] = Time.now.to_i
           end
         end
 
@@ -207,18 +207,24 @@ module Rollout::UI
 
       def render_view(name)
         response['content-type'] = 'text/html;charset=utf-8'
-        response.write(render_template(:layout) { render_template(name) })
+        response.write(erb(name))
       end
 
       # Called from within views to render a partial, e.g.
-      # `== slim :"features/partials/event_log", locals: { events: events }`
-      def slim(name, locals: {})
-        render_template(name, locals)
+      # `<%= erb :"features/partials/event_log", layout: false, locals: { events: events } %>`
+      def erb(name, layout: true, locals: {})
+        return render_template(name, locals) unless layout
+
+        render_template(:layout, locals) { render_template(name, locals) }
       end
 
       def render_template(name, locals = {}, &block)
-        template = (TEMPLATE_CACHE[name] ||= Slim::Template.new(File.join(VIEWS_PATH, "#{name}.slim")))
-        template.render(self, locals, &block)
+        path = File.join(VIEWS_PATH, "#{name}.erb")
+        template_source = (TEMPLATE_CACHE[name] ||= ERB.new(File.read(path), trim_mode: '-').src)
+
+        template_binding = binding
+        locals.each { |key, value| template_binding.local_variable_set(key, value) }
+        template_binding.eval(template_source, path)
       end
     end
   end

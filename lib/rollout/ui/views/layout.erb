@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html data-timestamp-format="<%= h(config.get(:timestamp_format)) %>">
+  <head>
+    <title>Rollout UI</title>
+    <meta name="viewport" content="width=device-width initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="<%= h(stylesheet_path('tailwind.min')) %>">
+    <style>
+      :root { color-scheme: light; }
+      :root.dark { color-scheme: dark; }
+      body { transition: background-color 0.2s, color 0.2s; }
+      .dark { background-color: #1a1a1a; color: #e5e5e5; }
+      .dark .text-gray-700 { color: #d1d1d1; }
+      .dark .text-gray-600 { color: #b8b8b8; }
+      .dark .text-gray-500 { color: #9ca3af; }
+      .dark .text-gray-400 { color: #6b7280; }
+      .dark .bg-gray-100 { background-color: #2a2a2a; }
+      .dark .bg-gray-200 { background-color: #333333; }
+      .dark .bg-gray-300 { background-color: #404040; }
+      .dark .border { border-color: #555555; }
+      .dark .border-gray-200 { border-color: #404040; }
+      .dark .hover\:bg-gray-200:hover { background-color: #3a3a3a; }
+      .dark .text-blue-600 { color: #60a5fa; }
+      .dark .hover\:text-blue-700:hover { color: #93c5fd; }
+      .dark .bg-white { background-color: #333333; }
+      .dark .border-gray-300 { border-color: #555555; }
+      .dark .hover\:bg-gray-800:hover { background-color: #4a4a4a; }
+    </style>
+  </head>
+  <body>
+    <!-- Addresses https://stackoverflow.com/questions/21147149/flash-of-unstyled-content-fouc-in-firefox-only-is-ff-slow-renderer -->
+    <script>0</script>
+    <script>
+      (function() {
+        const theme = localStorage.getItem('theme') || 'system';
+        function applyTheme(t) {
+          const root = document.documentElement;
+          if (t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            root.classList.add('dark');
+          } else {
+            root.classList.remove('dark');
+          }
+        }
+        applyTheme(theme);
+        const themeLabels = { system: 'Theme: System', light: 'Theme: Light', dark: 'Theme: Dark' };
+        const themeTitles = {
+          system: "Follows your device's light or dark appearance setting.",
+          light: 'Always use light appearance.',
+          dark: 'Always use dark appearance.'
+        };
+        window.addEventListener('DOMContentLoaded', function() {
+          const btn = document.getElementById('theme-toggle');
+          function applyThemeLabel(t) {
+            btn.textContent = themeLabels[t];
+            btn.title = themeTitles[t];
+          }
+          applyThemeLabel(theme);
+          btn.addEventListener('click', function() {
+            const current = localStorage.getItem('theme') || 'system';
+            const next = current === 'light' ? 'dark' : current === 'dark' ? 'system' : 'light';
+            localStorage.setItem('theme', next);
+            applyTheme(next);
+            applyThemeLabel(next);
+          });
+          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+            if (localStorage.getItem('theme') === 'system') applyTheme('system');
+          });
+
+          const timezoneKey = 'timezone';
+          const timezoneBtn = document.getElementById('timezone-toggle');
+          function timezoneMode() {
+            return localStorage.getItem(timezoneKey) === 'utc' ? 'utc' : 'local';
+          }
+          function formatTimestamp(iso, mode) {
+            const date = new Date(iso);
+            if (Number.isNaN(date.getTime())) return null;
+            const format = document.documentElement.getAttribute('data-timestamp-format') || '%Y-%m-%d %H:%M %Z';
+            const parts = {};
+            new Intl.DateTimeFormat('en-US', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hourCycle: 'h23',
+              timeZone: mode === 'utc' ? 'UTC' : undefined,
+              timeZoneName: 'short'
+            }).formatToParts(date).forEach(function(part) {
+              if (part.type !== 'literal') parts[part.type] = part.value;
+            });
+            const tokens = {
+              '%Y': parts.year,
+              '%y': parts.year.slice(-2),
+              '%m': parts.month,
+              '%d': parts.day,
+              '%H': parts.hour,
+              '%M': parts.minute,
+              '%S': parts.second,
+              '%Z': parts.timeZoneName,
+              '%%': '%'
+            };
+            return format.replace(/%[%YymdHMSZ]/g, function(token) {
+              return Object.prototype.hasOwnProperty.call(tokens, token) ? tokens[token] : token;
+            });
+          }
+          function applyTimezone(mode) {
+            const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local';
+            timezoneBtn.textContent = mode === 'utc' ? 'Time: UTC' : 'Time: Local';
+            timezoneBtn.title = mode === 'utc'
+              ? 'Uses Coordinated Universal Time.'
+              : "Uses your browser's timezone: " + localZone;
+            document.querySelectorAll('[data-timestamp]').forEach(function(el) {
+              const formatted = formatTimestamp(el.getAttribute('data-timestamp'), mode);
+              if (formatted) el.setAttribute('title', formatted);
+            });
+          }
+          applyTimezone(timezoneMode());
+          timezoneBtn.addEventListener('click', function() {
+            const next = timezoneMode() === 'local' ? 'utc' : 'local';
+            localStorage.setItem(timezoneKey, next);
+            applyTimezone(next);
+          });
+        });
+      })();
+    </script>
+    <div class="container mx-auto font-mono text-gray-700 px-5 pb-20">
+      <div class="flex items-center pt-20">
+        <h1 class="font-light text-4xl text-gray-600 flex-auto">
+          <a href="<%= h(index_path) %>" class="hover:text-blue-700">Rollout </a>
+        </h1>
+        <button type="button" id="timezone-toggle" class="text-sm text-gray-600 p-2 bg-gray-100 rounded-sm transition-colors duration-150 hover:bg-gray-200 mr-2" title="Uses your browser's timezone">Time: Local</button>
+        <button type="button" id="theme-toggle" class="text-sm text-gray-600 p-2 bg-gray-100 rounded-sm transition-colors duration-150 hover:bg-gray-200" title="Follows your device's light or dark appearance setting.">Theme: System</button>
+      </div>
+      <%= yield %>
+    </div>
+  </body>
+</html>

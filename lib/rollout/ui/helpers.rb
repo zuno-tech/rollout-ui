@@ -70,6 +70,16 @@ module Rollout::UI
       end
     end
 
+    def formatted_timestamp(time)
+      time.strftime(config.get(:timestamp_format))
+    end
+
+    def relative_timestamp_tag(time)
+      return "" unless time
+
+      %(<span data-timestamp="#{h(time.iso8601)}" title="#{h(formatted_timestamp(time))}">#{h(time_ago(time))}</span>)
+    end
+
     def format_change_key(key)
       key.to_s.gsub('data.', '')
     end
@@ -109,8 +119,8 @@ module Rollout::UI
       }
     end
 
-    def sanitized_name(feature_name)
-      Rack::Utils.escape_html(feature_name)
+    def h(value)
+      Rack::Utils.escape_html(value)
     end
   end
 end
